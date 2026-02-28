@@ -1,0 +1,42 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            APP_DIR="/opt/agent-service"
+
+            # Clone or pull
+            if [ ! -d "$APP_DIR" ]; then
+              sudo git clone ${{ github.server_url }}/${{ github.repository }}.git "$APP_DIR"
+              sudo chown -R $USER:$USER "$APP_DIR"
+            else
+              cd "$APP_DIR"
+              git pull origin main
+            fi
+
+            cd "$APP_DIR"
+
+            # .env 확인
+            if [ ! -f .env ]; then
+              echo "ERROR: .env file not found"
+              exit 1
+            fi
+
+            # 배포
+            docker compose up -d --build
+
+            # 디스크 정리
+            docker image prune -f
